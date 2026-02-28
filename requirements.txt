@@ -3,3 +3,7 @@ pytest-html
 flake8
 psycopg2-binary
 pymongo
+streamlit
+pandas
+plotly
+SQLAlchemy

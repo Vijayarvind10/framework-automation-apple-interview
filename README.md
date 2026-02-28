@@ -33,6 +33,14 @@ python main.py
 ```
 You will see 30 tests concurrently dispatch, log to Postgres/Mongo, and complete!
 
+### 4. Open the Data Visualization Dashboard
+The framework includes a real-time data visualization dashboard explicitly designed for stakeholder communication (using Streamlit and Plotly). To view live tests:
+```bash
+source venv/bin/activate
+streamlit run dashboard.py
+```
+This will open a browser window displaying test metrics, durations, and live pass/fail pie charts pulling straight from PostgreSQL!
+
 ## How the CI/CD Pipeline Works
 This framework natively includes a GitHub Actions pipeline located in `.github/workflows/ci.yml`.
 Whenever you push your code to the `main` branch, a fresh Ubuntu runner will:
