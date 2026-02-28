@@ -1,0 +1,83 @@
+---
+# Playbook to configure physical devices for the test execution layer
+- name: Setup Wireless Lab Devices
+  # Target the 'lab_devices' inventory group (which you would define in your Ansible hosts file)
+  hosts: lab_devices
+  # We need root/sudo privileges to install system packages on Linux/macOS
+  become: yes
+
+  # 3. Sets environment variables
+  environment:
+    FRAMEWORK_ENV: "production"
+    TEST_LAB_REGION: "us-west-1"
+    # Ensure our environment includes common paths where Python might be installed
+    PATH: "/usr/local/bin:/opt/homebrew/bin:{{ ansible_env.PATH }}"
+    # Prevent Python from buffering stdout/stderr (useful for logs)
+    PYTHONUNBUFFERED: "1"
+
+  tasks:
+    # 1. Installs Python 3.11 on all lab devices
+    # (Assuming macOS and Linux test nodes here; adjusting modules based on the OS)
+    - name: Install Python 3.11 on macOS nodes (e.g., Mac Minis)
+      homebrew:
+        name: python@3.11
+        state: present
+      when: ansible_os_family == "Darwin"
+      become: no # Homebrew complains if run as root
+
+    - name: Install Python 3.11 on Linux nodes
+      apt:
+        name: 
+          - python3.11
+          - python3-pip
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    # Step to copy the local requirements file to the physical device
+    - name: Copy requirements.txt to device
+      copy:
+        src: ./requirements.txt
+        dest: /tmp/requirements.txt
+
+    # 2. Installs required packages from requirements.txt
+    - name: Install required Python packages
+      pip:
+        requirements: /tmp/requirements.txt
+        # explicitly use pip corresponding to python 3.11
+        executable: pip3.11
+        # It's best practice to use a virtual environment
+        # virtualenv: /opt/framework/venv
+
+    # 4. Checks device status and reports back
+    # Here we run a simple custom command to test if python runs successfully and grab the OS version.
+    - name: Check device operational health
+      command: python3.11 -c "import sys; print('Python OK')"
+      register: health_check
+      # Don't fail the playbook immediately if this command fails
+      ignore_errors: yes
+
+    - name: Report device status
+      debug:
+        msg: >
+          Device: {{ inventory_hostname }},
+          OS Family: {{ ansible_os_family }},
+          Status Check: {% if health_check.rc == 0 %}SUCCESS{% else %}FAILED{% endif %}
+
+    # 5. Tags devices as AVAILABLE after setup
+    # Since your architecture has a REST API, we can use the 'uri' module to hit your endpoint 
+    # and update the MongoDB/PostgreSQL state indicating the device is ready to accept tests.
+    - name: Tag device as 'AVAILABLE' via Framework REST API
+      uri:
+        url: "http://api.framework.local/api/devices/{{ inventory_hostname }}/status"
+        method: PUT
+        body_format: json
+        body:
+          status: "AVAILABLE"
+          python_version: "3.11"
+          # Assuming you are storing these facts about the lab device
+          os_version: "{{ ansible_os_family }}"
+          framework_ready: true
+        status_code: 200
+        # Ignore errors so the playbook completes even if the API happens to be momentarily unreachable
+      ignore_errors: yes
