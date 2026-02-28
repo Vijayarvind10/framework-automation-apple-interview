@@ -1,0 +1,25 @@
+# Grafana Datasource Provisioning
+# This file auto-configures PostgreSQL as a data source when Grafana boots
+apiVersion: 1
+
+deleteDatasources:
+  - name: PostgreSQL
+    orgId: 1
+
+datasources:
+  - name: PostgreSQL
+    type: postgres
+    uid: pg-datasource
+    access: proxy
+    # 'postgres' here refers to the Docker service name (not localhost)
+    # Docker networking internally resolves container names to IPs
+    url: postgres:5432
+    database: postgres
+    user: postgres
+    isDefault: true
+    editable: true
+    secureJsonData:
+      password: postgres
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1500

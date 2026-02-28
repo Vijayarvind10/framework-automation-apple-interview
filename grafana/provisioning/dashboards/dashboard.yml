@@ -1,0 +1,14 @@
+# Grafana Dashboard Provisioning
+# Tells Grafana to auto-load dashboard JSON files from /var/lib/grafana/dashboards
+apiVersion: 1
+
+providers:
+  - name: 'Wireless Automation'
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15
@@ -25,6 +23,25 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: framework_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      # Disable login requirement so the dashboard is instantly accessible
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+    volumes:
+      # Mount provisioning configs so Grafana auto-connects to PostgreSQL on boot
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      # Mount pre-built dashboard JSON files
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:
