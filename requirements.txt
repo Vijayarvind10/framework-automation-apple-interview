@@ -3,6 +3,7 @@ pytest-html
 flake8
 psycopg2-binary
 pymongo
+elasticsearch>=8.0.0,<9.0.0
 streamlit
 pandas
 plotly

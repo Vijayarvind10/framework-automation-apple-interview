@@ -1,5 +1,5 @@
 import asyncio
-from database import PostgresDB, MongoDB
+from database import PostgresDB, MongoDB, ElasticsearchDB
 from test_runner import AsyncTestRunner
 
 async def main():
@@ -14,7 +14,11 @@ async def main():
     mongo_db = MongoDB()
     mongo_db.connect()
     
-    print("Databases Connected and Tables Initialized!")
+    # Init Elasticsearch (for full-text log search via Kibana)
+    es_db = ElasticsearchDB()
+    es_db.connect()
+    
+    print("All Databases Connected and Tables Initialized!")
     
     # 1. Create 10 fake devices & register in PostgreSQL as AVAILABLE
     devices = [f"device_iphone_{str(i).zfill(3)}" for i in range(1, 11)]
@@ -32,7 +36,7 @@ async def main():
             test_requests.append((test, device))
             
     # 3. Run all tests concurrently using AsyncTestRunner with DB bindings attached
-    runner = AsyncTestRunner(pg_db=pg_db, mongo_db=mongo_db)
+    runner = AsyncTestRunner(pg_db=pg_db, mongo_db=mongo_db, es_db=es_db)
     final_results = await runner.run_all(test_requests)
     
     # 4. Print final mathematical summary
@@ -67,6 +71,7 @@ async def main():
     # Safe Cleanup
     pg_db.close()
     mongo_db.close()
+    es_db.close()
 
 if __name__ == "__main__":
     asyncio.run(main())

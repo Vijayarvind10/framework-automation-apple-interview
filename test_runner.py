@@ -3,6 +3,7 @@ import logging
 import time
 import datetime
 import random
+import traceback
 from abc import ABC, abstractmethod
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -61,11 +62,12 @@ class TestFactory:
 
 
 class AsyncTestRunner:
-    """Runs wireless tests on multiple devices concurrently, logging results to PostgreSQL & MongoDB."""
+    """Runs wireless tests on multiple devices concurrently, logging to PostgreSQL, MongoDB & Elasticsearch."""
     
-    def __init__(self, pg_db=None, mongo_db=None):
+    def __init__(self, pg_db=None, mongo_db=None, es_db=None):
         self.pg_db = pg_db
         self.mongo_db = mongo_db
+        self.es_db = es_db
 
     async def _execute_single_test(self, test_name: str, device_id: str) -> dict:
         """Wrapper to execute a single test, log database results, and handle exceptions safely."""
@@ -92,6 +94,8 @@ class AsyncTestRunner:
         except Exception as e:
             # 4. Handle exceptions gracefully without tearing down the entire runner loop
             error_msg = str(e)
+            # Capture the full stack trace for Elasticsearch full-text search
+            stack_trace = traceback.format_exc()
             print(f"❌ [FAILED] Test '{test_name}' on device '{device_id}' failed: {type(e).__name__}({e})")
             result = {
                 "status": "FAIL", 
@@ -120,6 +124,18 @@ class AsyncTestRunner:
                 self.mongo_db.write_log(test_name, device_id, status, duration, error_msg, timestamp)
             except Exception as e:
                 logging.error(f"MongoDB logging error: {e}")
+        # 7. ELK: Index the log into Elasticsearch for full-text search via Kibana
+        if self.es_db:
+            try:
+                timestamp = datetime.datetime.now()
+                # stack_trace is only populated on failures (captured in the except block)
+                self.es_db.index_log(
+                    test_name, device_id, status, duration, 
+                    error_msg, stack_trace if status == 'FAIL' else '',
+                    timestamp
+                )
+            except Exception as e:
+                logging.error(f"Elasticsearch logging error: {e}")
 
         return result
 

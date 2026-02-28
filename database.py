@@ -1,7 +1,9 @@
 import psycopg2
 from pymongo import MongoClient
+from elasticsearch import Elasticsearch
 import os
 import datetime
+import traceback
 
 class PostgresDB:
     """Handles all PostgreSQL interactions for the tracking framework."""
@@ -126,5 +128,63 @@ class MongoDB:
 
     def close(self):
         """Safely close the MongoDB client."""
+        if self.client:
+            self.client.close()
+
+
+class ElasticsearchDB:
+    """Handles Elasticsearch interactions for full-text log search via Kibana.
+    
+    In production, Logstash would typically sit between MongoDB and Elasticsearch
+    to collect and transform logs. For this framework, we write directly from Python
+    which is simpler and gives us more control over the document structure.
+    """
+    def __init__(self):
+        self.es_host = os.getenv("ES_HOST", "http://localhost:9200")
+        self.index_name = "wireless-test-logs"
+        self.client = None
+
+    def connect(self):
+        """Connect to the Elasticsearch cluster."""
+        self.client = Elasticsearch(self.es_host)
+        # Verify the connection is alive
+        if not self.client.ping():
+            raise ConnectionError("Cannot connect to Elasticsearch")
+        # Create the index with proper mappings if it doesn't exist
+        if not self.client.indices.exists(index=self.index_name):
+            self.client.indices.create(
+                index=self.index_name,
+                mappings={
+                    "properties": {
+                        "test_name":  {"type": "keyword"},   # exact match filtering
+                        "device_id":  {"type": "keyword"},   # exact match filtering
+                        "status":     {"type": "keyword"},   # PASS/FAIL filtering
+                        "duration":   {"type": "float"},     # numeric range queries
+                        "error":      {"type": "text"},      # full-text search!
+                        "stack_trace": {"type": "text"},     # full-text search!
+                        "log_level":  {"type": "keyword"},   # INFO/ERROR/WARN
+                        "timestamp":  {"type": "date"}       # time-based filtering
+                    }
+                }
+            )
+
+    def index_log(self, test_name: str, device_id: str, status: str, 
+                  duration: float, error: str, stack_trace: str,
+                  timestamp: datetime.datetime):
+        """Index a log document into Elasticsearch for full-text search via Kibana."""
+        doc = {
+            "test_name": test_name,
+            "device_id": device_id,
+            "status": status,
+            "duration": duration,
+            "error": error,
+            "stack_trace": stack_trace,
+            "log_level": "ERROR" if status == "FAIL" else "INFO",
+            "timestamp": timestamp.isoformat()
+        }
+        self.client.index(index=self.index_name, document=doc)
+
+    def close(self):
+        """Safely close the Elasticsearch client."""
         if self.client:
             self.client.close()

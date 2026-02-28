@@ -24,20 +24,51 @@ services:
     volumes:
       - mongodb_data:/data/db
 
+  # Elasticsearch: indexes and stores logs for full-text search
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: framework_elasticsearch
+    environment:
+      - discovery.type=single-node
+      # Disable security for local dev (no login required)
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      # Limit memory usage so it doesn't eat your entire RAM
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Kibana: the UI for searching and visualizing logs from Elasticsearch
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.0
+    container_name: framework_kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  # Grafana: dashboards for structured metrics from PostgreSQL
   grafana:
     image: grafana/grafana:latest
     container_name: framework_grafana
     ports:
       - "3000:3000"
     environment:
-      # Disable login requirement so the dashboard is instantly accessible
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
       GF_SECURITY_ADMIN_PASSWORD: "admin"
     volumes:
-      # Mount provisioning configs so Grafana auto-connects to PostgreSQL on boot
       - ./grafana/provisioning:/etc/grafana/provisioning
-      # Mount pre-built dashboard JSON files
       - ./grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
       postgres:
@@ -46,3 +77,4 @@ services:
 volumes:
   postgres_data:
   mongodb_data:
+  es_data:
