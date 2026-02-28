@@ -8,7 +8,7 @@ deleteDatasources:
 
 datasources:
   - name: PostgreSQL
-    type: postgres
+    type: grafana-postgresql-datasource
     uid: pg-datasource
     access: proxy
     # 'postgres' here refers to the Docker service name (not localhost)
